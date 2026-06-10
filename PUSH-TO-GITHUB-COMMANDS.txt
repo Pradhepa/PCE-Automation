@@ -1,0 +1,163 @@
+=============================================================================
+📋 EXACT COMMANDS TO PUSH YOUR CODE TO GITHUB
+=============================================================================
+
+STEP 1: INSTALL GIT (if not already installed)
+-----------------------------------------------
+1. Download Git from: https://git-scm.com/download/win
+2. Install with default settings
+3. Restart PowerShell after installation
+
+
+STEP 2: CREATE GITHUB REPOSITORY
+---------------------------------
+1. Go to: https://github.com
+2. Click "+" → "New repository"
+3. Name: ashley-payroll-automation (or your choice)
+4. Set to Private (recommended)
+5. DO NOT initialize with README/gitignore
+6. Click "Create repository"
+7. Copy the repository URL (you'll need it below)
+
+
+STEP 3: RUN THESE COMMANDS IN POWERSHELL
+-----------------------------------------
+
+# Open PowerShell and run each command one by one:
+
+# 1. Navigate to your project
+cd "C:\Users\PE\OneDrive - Ashley Furniture Industries, Inc\Playwrightautomation"
+
+# 2. Initialize Git
+git init
+
+# 3. Configure Git (replace with your name and email)
+git config user.name "Your Name"
+git config user.email "your.email@ashleyfurniture.com"
+
+# 4. Add all files (respects .gitignore - won't add credentials.json)
+git add .
+
+# 5. IMPORTANT: Verify credentials.json is NOT listed
+git status
+# Look at the output - credentials.json should NOT be in green
+# If you see it, STOP and ask for help!
+
+# 6. Create first commit
+git commit -m "Initial commit: Payroll automation complete and verified"
+
+# 7. Add your GitHub repository (REPLACE with your actual URL from Step 2)
+git remote add origin https://github.com/YOUR-USERNAME/ashley-payroll-automation.git
+
+# 8. Set default branch
+git branch -M main
+
+# 9. Push to GitHub
+git push -u origin main
+
+
+STEP 4: VERIFY ON GITHUB
+-------------------------
+1. Go to: https://github.com/YOUR-USERNAME/ashley-payroll-automation
+2. Check that files are there
+3. VERIFY that credentials.json is NOT visible
+
+
+✅ DONE! YOUR CODE IS NOW ON GITHUB!
+
+
+=============================================================================
+📝 FOR FUTURE UPDATES
+=============================================================================
+
+Whenever you make changes to the code:
+
+# Check what changed
+git status
+
+# Add the changes
+git add .
+
+# Commit with a message
+git commit -m "Your description of changes"
+
+# Push to GitHub
+git push
+
+
+=============================================================================
+🔐 SECURITY VERIFICATION
+=============================================================================
+
+Before pushing, ALWAYS verify:
+
+git status
+
+This should show files to be committed.
+credentials.json should NOT be in the list.
+
+If credentials.json appears:
+1. DO NOT PUSH!
+2. Run: git reset
+3. Check .gitignore contains: config/credentials.json
+4. Try again
+
+
+=============================================================================
+⚠️ IMPORTANT NOTES
+=============================================================================
+
+✅ SAFE TO PUSH:
+- All .ts files
+- All .md files
+- credentials.template.json
+- package.json
+- .gitignore
+
+❌ NEVER PUSH:
+- config/credentials.json (YOUR PASSWORD!)
+- node_modules/ folder
+- test-results/ folder
+
+
+The .gitignore file protects these automatically.
+
+
+=============================================================================
+🆘 IF YOU GET ERRORS
+=============================================================================
+
+Error: "git: command not found"
+Solution: Git is not installed. Go back to Step 1.
+
+Error: "Authentication failed"
+Solution: You may need a Personal Access Token
+1. Go to: https://github.com/settings/tokens
+2. Generate new token (classic)
+3. Use token as password when prompted
+
+Error: "repository not found"
+Solution: Check the repository URL is correct
+
+Error: "permission denied"
+Solution: Make sure you own the repository
+
+
+=============================================================================
+📞 HELP DOCUMENTS
+=============================================================================
+
+See these files for detailed help:
+- GITHUB-SETUP-GUIDE.md - Complete step-by-step guide
+- GIT-PUSH-CHECKLIST.md - What gets pushed
+- SHARING-INSTRUCTIONS.md - How to share with team
+
+
+=============================================================================
+✅ READY TO PUSH!
+=============================================================================
+
+Follow the steps above to push your code to GitHub safely.
+Your credentials.json will NOT be included (protected by .gitignore).
+
+Good luck! 🚀
