@@ -1,3 +1,17 @@
+// ============================================================================
+// 🔒 PRODUCTION CODE - DO NOT MODIFY
+// ============================================================================
+// File: payroll-calculation.spec.ts
+// Purpose: Automated extraction of Paycode and Earning Code data
+// Author: Pradhepa
+// Created: 2026-06-11
+// Last Updated: 2026-06-12
+//
+// ⚠️ WARNING: This code is production-ready and tested.
+// ⚠️ DO NOT MODIFY unless you know what you're doing.
+// ⚠️ Always test changes in a separate file first.
+// ============================================================================
+
 import { test, expect } from '@playwright/test';
 import { Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
@@ -5,8 +19,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 // Load credentials from configuration file
-const configPath = path.join(process.cwd(), 'config', 'credentials.json');
 let credentials: { email: string; password: string; portalUrl: string };
+const configPath = path.join(process.cwd(), 'config', 'credentials.json');
 
 try {
   const configData = fs.readFileSync(configPath, 'utf-8');
