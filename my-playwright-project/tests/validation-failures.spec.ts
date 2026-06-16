@@ -421,47 +421,93 @@ test.describe('Ashley Furniture Payroll Validation Failures Extraction', () => {
         // ====================================================================
         console.log('👉 Looking for first job run ID...');
 
-        // Wait for tables to load
+        // Wait for page content to load - try multiple strategies
+        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
+          console.log('   ⚠️  Network not idle, continuing anyway...');
+        });
+
+        // Wait for tables to actually appear on the page
+        try {
+          await page.waitForSelector('table', { timeout: 10000 });
+          console.log('   ✅ Table element detected on page');
+        } catch (e) {
+          console.log('   ⚠️  No table found after 10s, will try broader search...');
+        }
+
+        // Additional wait for dynamic content
         await page.waitForTimeout(3000);
 
         // Try multiple approaches to find job run IDs
         let idElement = null;
 
-        // Approach 1: Look for ANY element (not just a/button) with UUID pattern in tables
-        console.log('   Searching for job run ID in tables...');
-        const tables = await page.locator('table').all();
-        console.log(`   Found ${tables.length} table(s)`);
-
-        for (let tableIndex = 0; tableIndex < tables.length && !idElement; tableIndex++) {
-          const table = tables[tableIndex];
-          const rows = await table.locator('tbody tr').all();
-
-          for (let rowIndex = 0; rowIndex < Math.min(rows.length, 10) && !idElement; rowIndex++) {
-            const row = rows[rowIndex];
-            const cells = await row.locator('td').all();
-
-            // Look for ID in all cells
-            for (let cellIndex = 0; cellIndex < cells.length && !idElement; cellIndex++) {
-              const cell = cells[cellIndex];
-              const cellText = await cell.textContent();
-              const cleanText = cellText?.trim() || '';
-
-              // Check if this cell contains a UUID-like pattern
-              if (cleanText.match(/^[a-f0-9]{8}/i)) {
-                console.log(`   ✅ Found ID in table ${tableIndex + 1}, row ${rowIndex + 1}, cell ${cellIndex + 1}: "${cleanText.substring(0, 12)}..."`);
-
-                // Try to find clickable element inside the cell
-                const clickableInCell = await cell.locator('a, button, span, div').first().count();
-
-                if (clickableInCell > 0) {
-                  idElement = cell.locator('a, button, span, div').first();
-                  console.log('   👉 Using clickable element inside cell');
-                } else {
-                  // Cell itself might be clickable
-                  idElement = cell;
-                  console.log('   👉 Using cell itself as clickable element');
-                }
+        // Approach 1: Look for UUID pattern in any text content on the page first
+        console.log('   Strategy 1: Looking for UUID pattern in page content...');
+        const allTextElements = await page.locator('text=/[a-f0-9]{8}-[a-f0-9]{4}/i').all();
+        if (allTextElements.length > 0) {
+          for (const elem of allTextElements) {
+            const text = await elem.textContent();
+            if (text && text.match(/^[a-f0-9]{8}/i)) {
+              console.log(`   ✅ Found UUID pattern: "${text.substring(0, 12)}..."`);
+              // Find the clickable parent or the element itself
+              const clickableParent = elem.locator('xpath=ancestor::a[1] | ancestor::button[1] | ancestor::span[@role="button"][1]').first();
+              if (await clickableParent.count() > 0) {
+                idElement = clickableParent;
+                console.log('   👉 Using clickable parent element');
                 break;
+              } else {
+                idElement = elem;
+                console.log('   👉 Using text element directly');
+                break;
+              }
+            }
+          }
+        }
+
+        // Approach 2: Look for ANY element (not just a/button) with UUID pattern in tables
+        if (!idElement) {
+          console.log('   Strategy 2: Searching for job run ID in tables...');
+          let tables = await page.locator('table').all();
+          console.log(`   Found ${tables.length} table(s)`);
+
+          // If no tables found, wait and retry
+          if (tables.length === 0) {
+            console.log('   ⚠️  No tables found initially, waiting 5 more seconds...');
+            await page.waitForTimeout(5000);
+            tables = await page.locator('table').all();
+            console.log(`   Retry: Found ${tables.length} table(s)`);
+          }
+
+          for (let tableIndex = 0; tableIndex < tables.length && !idElement; tableIndex++) {
+            const table = tables[tableIndex];
+            const rows = await table.locator('tbody tr').all();
+
+            for (let rowIndex = 0; rowIndex < Math.min(rows.length, 10) && !idElement; rowIndex++) {
+              const row = rows[rowIndex];
+              const cells = await row.locator('td').all();
+
+              // Look for ID in all cells
+              for (let cellIndex = 0; cellIndex < cells.length && !idElement; cellIndex++) {
+                const cell = cells[cellIndex];
+                const cellText = await cell.textContent();
+                const cleanText = cellText?.trim() || '';
+
+                // Check if this cell contains a UUID-like pattern
+                if (cleanText.match(/^[a-f0-9]{8}/i)) {
+                  console.log(`   ✅ Found ID in table ${tableIndex + 1}, row ${rowIndex + 1}, cell ${cellIndex + 1}: "${cleanText.substring(0, 12)}..."`);
+
+                  // Try to find clickable element inside the cell
+                  const clickableInCell = await cell.locator('a, button, span, div').first().count();
+
+                  if (clickableInCell > 0) {
+                    idElement = cell.locator('a, button, span, div').first();
+                    console.log('   👉 Using clickable element inside cell');
+                  } else {
+                    // Cell itself might be clickable
+                    idElement = cell;
+                    console.log('   👉 Using cell itself as clickable element');
+                  }
+                  break;
+                }
               }
             }
           }
@@ -526,9 +572,36 @@ test.describe('Ashley Furniture Payroll Validation Failures Extraction', () => {
         // ====================================================================
         console.log('👉 Looking for Validation Failures section...');
 
-        // Check if there are validation failures
-        const validationSection = page.locator('text=/Validation Failures/i').first();
-        const hasValidationFailures = await validationSection.count() > 0;
+        // Wait longer for page to fully load
+        await page.waitForTimeout(3000);
+
+        // Try multiple strategies to find validation failures section
+        let validationSection = page.locator('text=/Validation Failures/i').first();
+        let hasValidationFailures = await validationSection.count() > 0;
+
+        // Strategy 2: Look for the warning icon + text
+        if (!hasValidationFailures) {
+          validationSection = page.locator('text=/⚠️.*Validation Failures/i').first();
+          hasValidationFailures = await validationSection.count() > 0;
+        }
+
+        // Strategy 3: Look for any heading containing "validation" and "failure"
+        if (!hasValidationFailures) {
+          validationSection = page.locator('h1, h2, h3, h4, h5, h6').filter({ hasText: /validation.*failure/i }).first();
+          hasValidationFailures = await validationSection.count() > 0;
+        }
+
+        // Debug: Log what we're seeing on the page
+        if (!hasValidationFailures) {
+          console.log('   🔍 DEBUG: Searching for validation failures section...');
+          const pageText = await page.textContent('body');
+          if (pageText && pageText.toLowerCase().includes('validation')) {
+            console.log('   🔍 DEBUG: Page contains "validation" text');
+            if (pageText.toLowerCase().includes('failure')) {
+              console.log('   🔍 DEBUG: Page contains "failure" text');
+            }
+          }
+        }
 
         if (!hasValidationFailures) {
           console.log('   ✅ No validation failures for this group');
@@ -558,27 +631,34 @@ test.describe('Ashley Furniture Payroll Validation Failures Extraction', () => {
           // Wait for content to load
           await page.waitForTimeout(2000);
 
-          // Find all dropdown/expand buttons using multiple selectors
-          const dropdownButtons = await page.locator('button[aria-label*="expand"]').all();
+          // TARGETED STRATEGY: Only expand buttons with aria-expanded="false" that are visible
+          // This is more conservative and faster
+          let dropdownsExpanded = 0;
 
-          console.log(`   📋 Found ${dropdownButtons.length} dropdown button(s) to expand`);
+          // Find buttons with aria-expanded="false" - these are collapsed sections
+          const ariaExpandedButtons = await page.locator('button[aria-expanded="false"]').all();
+          console.log(`   📋 Found ${ariaExpandedButtons.length} collapsed section(s)`);
 
-          // Click all dropdown buttons to expand all sections
-          for (let i = 0; i < dropdownButtons.length; i++) {
+          for (const btn of ariaExpandedButtons) {
             try {
-              const button = dropdownButtons[i];
-              const isVisible = await button.isVisible();
+              // Only click if visible and not disabled
+              const isVisible = await btn.isVisible().catch(() => false);
+              const isDisabled = await btn.isDisabled().catch(() => false);
 
-              if (isVisible) {
-                console.log(`   👉 Clicking dropdown ${i + 1}/${dropdownButtons.length}...`);
-                await button.click();
-                await page.waitForTimeout(1000);
-                console.log(`   ✅ Expanded dropdown ${i + 1}`);
+              if (isVisible && !isDisabled) {
+                await btn.click();
+                await page.waitForTimeout(500); // Reduced wait time
+                dropdownsExpanded++;
               }
             } catch (e) {
-              console.log(`   ⚠️  Could not expand dropdown ${i + 1}`);
+              // Continue on error
             }
           }
+
+          console.log(`   ✅ Expanded ${dropdownsExpanded} dropdown section(s)`);
+
+          // Wait for all tables to load after expansion
+          await page.waitForTimeout(2000);
 
           // ====================================================================
           // EXTRACT VALIDATION FAILURE DATA WITH PROPER COLUMN NAMES
@@ -627,34 +707,94 @@ test.describe('Ashley Furniture Payroll Validation Failures Extraction', () => {
                 headers = tempHeaders;
                 console.log(`   ✅ Table ${tableIndex + 1} is a validation failures table with headers: ${headers.join(', ')}`);
 
-                // Extract data rows from this table
-                const tableRows = await table.locator('tbody tr').all();
-                console.log(`   📊 Found ${tableRows.length} data row(s) in table ${tableIndex + 1}`);
+                // Extract data rows from this table WITH PAGINATION
+                let currentPage = 1;
+                let hasMorePages = true;
 
-                for (const row of tableRows) {
-                  try {
-                    const cells = await row.locator('td').all();
-                    if (cells.length > 0) {
-                      const rowData: any = {
-                        'Group Name': group.name
-                      };
+                while (hasMorePages) {
+                  console.log(`   📄 Extracting page ${currentPage} from table ${tableIndex + 1}...`);
 
-                      // Extract text from each cell using proper column names
-                      for (let i = 0; i < cells.length; i++) {
-                        const cellText = await cells[i].textContent();
-                        const columnName = headers[i] || `Column ${i + 1}`;
-                        rowData[columnName] = cellText?.trim() || '';
+                  const tableRows = await table.locator('tbody tr').all();
+                  console.log(`   📊 Found ${tableRows.length} data row(s) on page ${currentPage}`);
+
+                  for (const row of tableRows) {
+                    try {
+                      const cells = await row.locator('td').all();
+                      if (cells.length > 0) {
+                        const rowData: any = {
+                          'Group Name': group.name
+                        };
+
+                        // Extract text from each cell using proper column names
+                        for (let i = 0; i < cells.length; i++) {
+                          const cellText = await cells[i].textContent();
+                          const columnName = headers[i] || `Column ${i + 1}`;
+                          rowData[columnName] = cellText?.trim() || '';
+                        }
+
+                        validationFailures.push(rowData);
+                        extractedCount++;
                       }
-
-                      validationFailures.push(rowData);
-                      extractedCount++;
+                    } catch (e) {
+                      // Skip rows that can't be processed
                     }
-                  } catch (e) {
-                    // Skip rows that can't be processed
+                  }
+
+                  // Check for "Next" pagination button - try multiple selectors
+                  let nextButton = null;
+                  let nextButtonFound = false;
+
+                  // Strategy 1: Look for button with aria-label="Go to next page"
+                  nextButton = page.locator('button[aria-label="Go to next page"]').first();
+                  if (await nextButton.count() > 0) {
+                    nextButtonFound = true;
+                  }
+
+                  // Strategy 2: Look for button with aria-label containing "next"
+                  if (!nextButtonFound) {
+                    nextButton = page.locator('button[aria-label*="next" i], button[aria-label*="Next"]').first();
+                    if (await nextButton.count() > 0) {
+                      nextButtonFound = true;
+                    }
+                  }
+
+                  // Strategy 3: Look for pagination navigation buttons
+                  if (!nextButtonFound) {
+                    nextButton = page.locator('.mud-pagination-item-next button, button.pagination-next, button[class*="next"]').first();
+                    if (await nextButton.count() > 0) {
+                      nextButtonFound = true;
+                    }
+                  }
+
+                  // Strategy 4: Look for buttons with ">" or next icon
+                  if (!nextButtonFound) {
+                    nextButton = page.locator('button:has-text(">"), button:has([data-testid*="next"]), button:has(svg[data-testid*="ChevronRight"])').first();
+                    if (await nextButton.count() > 0) {
+                      nextButtonFound = true;
+                    }
+                  }
+
+                  if (nextButtonFound) {
+                    const isDisabled = await nextButton.isDisabled().catch(() => true);
+                    const isVisible = await nextButton.isVisible().catch(() => false);
+
+                    if (!isDisabled && isVisible) {
+                      console.log(`   👉 Clicking "Next" to load page ${currentPage + 1}...`);
+                      await nextButton.click();
+                      await page.waitForTimeout(2500); // Wait for table to reload
+                      currentPage++;
+                    } else {
+                      console.log(`   ✅ Reached last page (${currentPage} total pages)`);
+                      hasMorePages = false;
+                    }
+                  } else {
+                    console.log(`   ✅ No pagination (single page table)`);
+                    hasMorePages = false;
                   }
                 }
               } else {
                 console.log(`   ⏭️  Skipping table ${tableIndex + 1} (not a validation failures table)`);
+                console.log(`       Headers: ${tempHeaders.join(', ')}`);
               }
             }
           }
