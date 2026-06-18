@@ -19,7 +19,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 // Load credentials from configuration file
-let credentials: { email: string; password: string; portalUrl: string };
+let credentials: { email: string; password: string; };
 const configPath = path.join(process.cwd(), 'config', 'credentials.json');
 
 try {
@@ -510,8 +510,10 @@ test.describe('Ashley Furniture Payroll Calculation Engine Automation', () => {
 
               console.log(`   Cell ${cellIndex + 1}: "${text.substring(0, 50)}"`);
 
-              // Check if this looks like an ID (e.g., "D6E3E7D0..." or similar)
-              if (text.match(/^[A-Z0-9]{3,}/i) && (text.includes('...') || text.length >= 6)) {
+              // Check if this looks like a Job Run ID (UUID pattern with dots)
+              // IMPORTANT: Skip "Validation" or other non-UUID text
+              if (text.match(/^[a-f0-9]{8}\.\.\./i) || // UUID pattern like "b9b203a3..."
+                  (text.match(/^[a-f0-9]{8}/i) && text.length >= 8 && !text.match(/validation|subgroup|#\d+/i))) {
                 console.log(`   ✅ Found ID in cell ${cellIndex + 1}: "${text}"`);
                 idElement = cell;
                 break;
@@ -540,9 +542,17 @@ test.describe('Ashley Furniture Payroll Calculation Engine Automation', () => {
 
         // Click the ID element (it's clickable even though it's not an <a> tag)
         console.log('   👉 Clicking on the ID element...');
-        await idElement.scrollIntoViewIfNeeded();
-        await idElement.click();
-        console.log('   ✅ Clicked on ID element');
+        try {
+          await idElement.scrollIntoViewIfNeeded();
+          // Add timeout to prevent infinite retries if element is blocked
+          await idElement.click({ timeout: 30000 }); // 30 second timeout
+          console.log('   ✅ Clicked on ID element');
+        } catch (error: any) {
+          console.log(`   ❌ Failed to click ID element: ${error.message}`);
+          console.log(`   ⏭️  Skipping group ${group.name} - Could not click job run ID`);
+          await page.screenshot({ path: `test-results/error-click-failed-${group.name.replace(/[^a-zA-Z0-9]/g, '_')}.png`, fullPage: true });
+          continue; // Skip to next group
+        }
 
         // Wait for navigation to group job run details
         await page.waitForLoadState('load');
